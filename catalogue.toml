@@ -1,0 +1,34 @@
+# The c-energie dev-hub catalogue: personal repos, and how a dev machine sets them up.
+#
+# This is the *personal* half of a machine that follows two catalogues. The team half is
+# net-flex/.github; a machine follows both, and `devhub` merges them into one view:
+#
+#   devhub follow                      # what this machine follows
+#   devhub follow c-energie/.github    # start following this one
+#
+# Two rules govern the split, both enforced when the catalogues are merged:
+#
+#   - A repo is declared by exactly one catalogue. Two declarations would give its setup
+#     rules two owners and no way to choose. This is why c-energie/bots left the team
+#     catalogue when it gained one of its own.
+#   - The [org] keys that describe how the *machine* is wired - secret_sync, roster,
+#     context, context_kit - are declared once anywhere and inherited by every followed
+#     catalogue. Hence no [org] table here at all: where secret-sync lives is a fact about
+#     this machine, not about c-energie, and net-flex/.github already states it.
+#
+# Everything else is the same contract as the team catalogue: unknown keys are a parse
+# error (caught by `devhub validate`, run by CI on every push), nothing sensitive may
+# appear, and listing a repo grants nothing - GitHub permissions are the gate.
+
+schema = 1
+
+# 0.7.0 is required because this file deliberately has no [org] table while declaring a
+# repo with `secrets = true`. Builds before 0.7.0 checked that pairing per file rather
+# than per machine, and would reject this catalogue outright instead of letting it inherit
+# secret-sync from the catalogue alongside it.
+min_tool_version = "0.7.0"
+
+[repos."c-energie/bots"]
+description = "Personal Telegram bots that write into Notion (the notes bot)."
+toolchain   = "uv"
+secrets     = true

@@ -1,0 +1,38 @@
+# A broken catalogue must not reach the next `devhub` start: every push and PR runs
+# `devhub validate`, which rejects unknown keys, missing descriptions, dangling profile
+# members, and a malformed version floor.
+#
+# What it deliberately does NOT check is that `secrets = true` has a matching
+# [org].secret_sync - this file has no [org] and inherits one from the catalogue followed
+# alongside it, so that pairing is a machine-level fact and is checked at merge, not here.
+# `devhub validate` reports it as a note rather than an error for exactly this reason.
+#
+# One-time setup: c-energie/dev-hub is private, so installing it here needs a fine-grained
+# PAT (Contents: read on c-energie/dev-hub only) saved as the repo/org secret
+# DEV_HUB_READ_TOKEN. Until that secret exists this workflow fails at install.
+name: validate-catalogue
+
+on:
+  push:
+    branches: [main]
+    paths: [catalogue.toml]
+  pull_request:
+    paths: [catalogue.toml]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+
+      - name: Install dev-hub
+        env:
+          TOKEN: ${{ secrets.DEV_HUB_READ_TOKEN }}
+        run: |
+          git config --global url."https://x-access-token:${TOKEN}@github.com/".insteadOf "https://github.com/"
+          uv tool install git+https://github.com/c-energie/dev-hub
+
+      - name: Validate the catalogue
+        run: devhub validate catalogue.toml
