@@ -1,0 +1,106 @@
+# Reusable docs-site workflow for c-energie repos: build with Zensical, and
+# optionally publish to GitHub Pages.
+#
+# Each repo with a site calls this file as
+# `c-energie/.github/.github/workflows/pages.yml@main`. That path and the
+# inputs below are a public contract: renaming the file, or renaming, removing
+# or newly requiring an input, breaks every caller, and nothing in this repo
+# lists them. Add inputs with a default; never repurpose an existing one.
+#
+# The caller's job must grant `pages: write` and `id-token: write` even when
+# `deploy` is false. GitHub checks every nested job's permissions against the
+# caller's before evaluating any `if`, so a caller that grants less fails to
+# start rather than merely skipping the deploy job.
+
+name: pages
+
+on:
+  workflow_call:
+    inputs:
+      working-directory:
+        description: >-
+          Directory holding the site's `zensical.toml` or `mkdocs.yml`,
+          relative to the checkout. The site is built into `site/` under it.
+        type: string
+        default: "."
+      deploy:
+        description: >-
+          Publish the built site to GitHub Pages. Leave false until the repo
+          is public and Settings -> Pages -> Source is "GitHub Actions": on
+          GitHub Free a private repo cannot publish.
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # configure-pages only reads the repo's Pages settings.
+      pages: read
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      # Nothing after checkout pushes or fetches the caller's repo, so its
+      # GITHUB_TOKEN is not left in the checkout's git config.
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      # Docs build on 3.13 only; the members' 3.11 floor is about their
+      # packages, not the site.
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.13"
+
+      # Zensical is alpha and its config handling still moves between
+      # releases, so it is pinned: bump it here, deliberately, for every site
+      # at once. --strict turns warnings, broken links among them, into a
+      # failed build, so a dead link fails the PR rather than shipping.
+      #
+      # Fallback if Zensical breaks: every site keeps its config to what
+      # Material for MkDocs 9.7 also accepts, so swapping the command below for
+      #   uvx --with mkdocs-material==9.7.* mkdocs==1.6.1 build --strict
+      # builds the same site into the same `site/`.
+      - name: Build
+        run: uvx zensical==0.0.68 build --strict
+
+      # The remaining steps run only when publishing. configure-pages fails
+      # here, with a clear message, if Pages is not enabled with "GitHub
+      # Actions" as its source, before anything is uploaded.
+      - if: inputs.deploy
+        uses: actions/configure-pages@v6
+
+      # The path assumes the default `site_dir`; a site that sets its own
+      # would upload nothing, so none should.
+      - if: inputs.deploy
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: ${{ inputs.working-directory }}/site
+
+  deploy:
+    needs: build
+    if: inputs.deploy
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    # One deployment at a time per repo. A newer run supersedes one still
+    # queued, but never cancels one in progress, so a deployment that has
+    # started always finishes.
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    # The github-pages environment exists once Pages is enabled; its
+    # deployment-branch rule (default branch only, by default) decides which
+    # refs may publish.
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5
