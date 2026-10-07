@@ -1,0 +1,237 @@
+# Reusable unittest workflow for c-energie member repos.
+#
+# Every public member's `tests.yml` calls this file as
+# `c-energie/.github/.github/workflows/unittest.yml@main`. That path and the
+# inputs below are a public contract: renaming the file, or renaming, removing
+# or newly requiring an input, breaks every caller, and nothing in this repo
+# lists them. Add inputs with a default; never repurpose an existing one.
+#
+# This repository is public, so this source and every log it produces are
+# world-readable. The read token below is therefore only ever handed to git
+# through the environment, never interpolated into a script or echoed.
+
+name: unittest
+
+on:
+  workflow_call:
+    inputs:
+      upstreams:
+        description: >-
+          Git requirements installed before the member, one per line, e.g.
+          `building-energy-analysis[smeter-models] @ git+https://github.com/c-energie/building-energy-analysis`.
+          Carry no `@ref`: each resolves to its repo's default branch.
+        type: string
+        default: ""
+      extras:
+        description: Extras for `uv pip install -e ".[<extras>]"`; empty installs plain `-e .`.
+        type: string
+        default: ""
+      tier:
+        description: Exported as TEST_TIER. One of fast, slow, benchmark.
+        type: string
+        default: fast
+      matrix:
+        description: >-
+          `pr` = ubuntu {3.11, 3.13} + windows 3.13;
+          `full` = {ubuntu, windows} x {3.11, 3.12, 3.13}.
+        type: string
+        default: pr
+      import_only:
+        description: When set, run `python -c "import <it>"` instead of the suite.
+        type: string
+        default: ""
+      working-directory:
+        description: Member root to install and test from, relative to the checkout.
+        type: string
+        default: "."
+    secrets:
+      C_ENERGIE_READ_TOKEN:
+        description: >-
+          Fine-grained PAT, contents:read on the private c-energie repos, used
+          to fetch private git upstreams. Optional: once the upstreams are
+          public none is needed, and an empty value skips the rewrite.
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  # The matrix arrives as a string input, and `strategy.matrix` cannot branch
+  # on it directly, so this job turns it into JSON for `fromJSON` below. It
+  # also rejects bad inputs here, once, rather than letting every leg spend
+  # minutes installing before failing on the same typo.
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - id: plan
+        shell: bash
+        env:
+          MATRIX: ${{ inputs.matrix }}
+          TIER: ${{ inputs.tier }}
+          IMPORT_ONLY: ${{ inputs.import_only }}
+        run: |
+          set -euo pipefail
+          case "$MATRIX" in
+            pr)
+              matrix='{"include":[
+                {"os":"ubuntu-latest","python":"3.11"},
+                {"os":"ubuntu-latest","python":"3.13"},
+                {"os":"windows-latest","python":"3.13"}]}'
+              ;;
+            full)
+              matrix='{"os":["ubuntu-latest","windows-latest"],"python":["3.11","3.12","3.13"]}'
+              ;;
+            *)
+              echo "::error::matrix must be 'pr' or 'full', got '$MATRIX'"
+              exit 1
+              ;;
+          esac
+          # A misspelt tier would otherwise run whatever the member treats as
+          # its default and go green, which reads as the tier passing.
+          case "$TIER" in
+            fast|slow|benchmark) ;;
+            *)
+              echo "::error::tier must be 'fast', 'slow' or 'benchmark', got '$TIER'"
+              exit 1
+              ;;
+          esac
+          # import_only is spliced into `python -c "import ..."`, so only a
+          # dotted module name is accepted.
+          if [ -n "$IMPORT_ONLY" ] && ! [[ "$IMPORT_ONLY" =~ ^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$ ]]; then
+            echo "::error::import_only must be a dotted module name, got '$IMPORT_ONLY'"
+            exit 1
+          fi
+          echo "matrix=$(tr -d ' \n' <<< "$matrix")" >> "$GITHUB_OUTPUT"
+
+  test:
+    needs: plan
+    name: ${{ matrix.os }} / py${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # One leg failing must not cancel the others: a Windows-only failure is
+      # exactly what the other legs are there to tell apart from a real one.
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    # bash on Windows too, so every step is one script rather than two.
+    # working-directory applies to every run step; checkout and the artifact
+    # path ignore it and are given it explicitly where it matters.
+    defaults:
+      run:
+        shell: bash
+        working-directory: ${{ inputs.working-directory }}
+    env:
+      CI: "true"
+      TEST_TIER: ${{ inputs.tier }}
+    steps:
+      # Nothing after checkout pushes or fetches the caller's repo, so its
+      # GITHUB_TOKEN is not left in the checkout's git config.
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@v7
+
+      # The venv is activated for later steps through VIRTUAL_ENV (which
+      # `uv pip` installs into) and PATH (so `python` is the venv's). Windows
+      # needs a native path for both, hence cygpath.
+      - name: Create venv
+        env:
+          PYTHON: ${{ matrix.python }}
+        run: |
+          set -euo pipefail
+          uv venv --python "$PYTHON" .venv
+          venv="$(pwd)/.venv"
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            venv="$(cygpath -w "$venv")"
+            bin="$venv\\Scripts"
+          else
+            bin="$venv/bin"
+          fi
+          echo "VIRTUAL_ENV=$venv" >> "$GITHUB_ENV"
+          echo "$bin" >> "$GITHUB_PATH"
+
+      # uv fetches git requirements with the git CLI, so a global insteadOf
+      # authenticates every github.com URL without the token ever appearing in
+      # a requirement line. Skipped when the secret is empty or not passed:
+      # after the public flip no token exists and none is needed.
+      - name: Authenticate git for private upstreams
+        env:
+          TOKEN: ${{ secrets.C_ENERGIE_READ_TOKEN }}
+        run: |
+          if [ -n "$TOKEN" ]; then
+            git config --global url."https://x-access-token:${TOKEN}@github.com/".insteadOf "https://github.com/"
+          fi
+
+      # Upstreams go in first and together, so the member's own install below
+      # finds them already satisfied instead of looking for them on PyPI. Each
+      # line is passed as given; no `@ref` is added, so each upstream tracks
+      # its default branch (master for PC, BEA and smeter-test; main for
+      # serl-dataset and ghg-dataset). Blank and `#` comment lines are skipped.
+      - name: Install upstreams
+        if: inputs.upstreams != ''
+        env:
+          UPSTREAMS: ${{ inputs.upstreams }}
+        run: |
+          set -euo pipefail
+          reqs=()
+          while IFS= read -r line || [ -n "$line" ]; do
+            line="${line%$'\r'}"
+            line="$(sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' <<< "$line")"
+            case "$line" in ''|'#'*) continue ;; esac
+            reqs+=("$line")
+          done <<< "$UPSTREAMS"
+          if [ "${#reqs[@]}" -gt 0 ]; then
+            uv pip install "${reqs[@]}"
+          fi
+
+      - name: Install member
+        env:
+          EXTRAS: ${{ inputs.extras }}
+        run: |
+          set -euo pipefail
+          if [ -n "$EXTRAS" ]; then
+            uv pip install -e ".[$EXTRAS]"
+          else
+            uv pip install -e .
+          fi
+
+      - name: Test
+        env:
+          IMPORT_ONLY: ${{ inputs.import_only }}
+        run: |
+          set -euo pipefail
+          if [ -n "$IMPORT_ONLY" ]; then
+            python -c "import $IMPORT_ONLY"
+          else
+            python -m unittest discover
+          fi
+
+      # upload-artifact rejects a second artifact with the same name in one
+      # run, so the name carries everything that can differ between legs and
+      # between calls: a caller testing two members, or two tiers, in one run,
+      # and a re-run of a failed leg.
+      - name: Name log artifact
+        if: failure()
+        id: logs
+        working-directory: .
+        env:
+          OS: ${{ matrix.os }}
+          PYTHON: ${{ matrix.python }}
+          TIER: ${{ inputs.tier }}
+          WD: ${{ inputs.working-directory }}
+          ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          name="test-logs-$OS-py$PYTHON-$TIER"
+          if [ "$WD" != "." ]; then
+            name="$name-$(printf '%s' "$WD" | tr -c 'A-Za-z0-9._-' '-')"
+          fi
+          echo "name=$name-attempt$ATTEMPT" >> "$GITHUB_OUTPUT"
+
+      - name: Upload test logs
+        if: failure()
+        uses: actions/upload-artifact@v5
+        with:
+          name: ${{ steps.logs.outputs.name }}
+          path: ${{ inputs.working-directory }}/tests/Logs/
