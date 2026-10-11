@@ -61,7 +61,7 @@ name: tests
 
 on:
   push:
-    branches: [master]  # the member's default branch; main for serl-dataset and ghg-dataset
+    branches: [master]  # the member's default branch; main for serl-cohort and ghg-cohort
   pull_request:
 
 permissions:
