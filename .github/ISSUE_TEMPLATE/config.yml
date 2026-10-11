@@ -1,0 +1,10 @@
+# Org-default issue chooser for every c-energie repository without an ISSUE_TEMPLATE of its own.
+#
+# Blank issues are off so that every report arrives through a form: a bug without its package,
+# version, Python and install route cannot be reproduced, and the docs link below answers most
+# "how do I start" questions before they become issues.
+blank_issues_enabled: false
+contact_links:
+  - name: BEA documentation
+    url: https://c-energie.github.io/bea-docs/
+    about: Tutorials, how-to guides, the contracts and the vocabulary. Most questions are answered here.

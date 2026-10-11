@@ -1,0 +1,34 @@
+# GitHub silently drops an invalid form from the chooser, so check any edit against the issue
+# forms schema: every input, textarea and dropdown needs a unique `id` and a `label`.
+name: Feature request
+description: Propose a new capability or a change to an existing one.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: The task or analysis you are working on, and where the package gets in the way. Describe the problem before the solution.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would help?
+      description: The change you have in mind, if you have one.
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What have you tried instead?
+      description: Workarounds or other approaches, and why they fall short.
+  - type: dropdown
+    id: contract
+    attributes:
+      label: Does it change a public contract?
+      description: The model, cohort and results contracts are what other people's packages and stored results depend on. Changing one needs an ADR and a contract version decision.
+      options:
+        - "No"
+        - "Yes"
+        - Not sure
+    validations:
+      required: true
