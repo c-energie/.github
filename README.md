@@ -5,6 +5,22 @@ Org-wide defaults for c-energie repos: community health files and reusable workf
 The personal dev-hub catalogue that used to live here is now in
 [`c-energie/dev-hub-catalogue`](https://github.com/c-energie/dev-hub-catalogue).
 
+## Community health files
+
+GitHub shows these on every c-energie repository that has no copy of its own, so an edit here
+changes what contributors see across the org:
+
+- `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1, unmodified), `CONTRIBUTING.md` and `SUPPORT.md`
+- `.github/ISSUE_TEMPLATE/`: the bug, feature and adapter-or-model issue forms, and `config.yml`,
+  which turns off blank issues and links the docs. GitHub silently drops an invalid form from
+  the chooser, so check every edit against the issue forms schema.
+- `.github/PULL_REQUEST_TEMPLATE.md`
+
+`profile/README.md` is the public profile shown at <https://github.com/c-energie>.
+
+Links in these files are absolute: they are rendered in other repositories, where a relative
+link would resolve against the wrong repo.
+
 ## Reusable workflows
 
 ### `unittest.yml`
@@ -45,7 +61,7 @@ name: tests
 
 on:
   push:
-    branches: [master]  # the member's default branch; main for serl-dataset and ghg-dataset
+    branches: [master]  # the member's default branch; main for serl-cohort and ghg-cohort
   pull_request:
 
 permissions:

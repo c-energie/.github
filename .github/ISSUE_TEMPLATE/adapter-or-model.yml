@@ -1,0 +1,50 @@
+# GitHub silently drops an invalid form from the chooser, so check any edit against the issue
+# forms schema: every input, textarea and dropdown needs a unique `id` and a `label`.
+#
+# This form routes people to the two copier templates and the agent skills before they ask, since
+# the templates and their contract tests answer most "how do I start" questions.
+name: I'm writing a cohort adapter / model package
+description: Help with bringing your own data source or your own models to BEA.
+labels: [question]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Most adapters and model packages start from a template, and the templates' contract tests tell you when you are done:
+
+        - **Cohort adapter** (your data source → BEA cohorts): [`bea-cohort-template`](https://github.com/c-energie/bea-cohort-template)
+        - **Model package** (your models, fitted to any cohort): [`bea-model-template`](https://github.com/c-energie/bea-model-template)
+
+        If you work with a coding agent, the [BEA agent skills](https://github.com/c-energie/building-energy-analysis/tree/master/skills) drive the same templates step by step. Install them once with `gh skill install c-energie/building-energy-analysis --scope user`.
+
+        The [docs](https://c-energie.github.io/bea-docs/) walk through both routes. If you are still stuck, tell us below.
+
+        **Never paste real data:** no readings, PUPRNs or other household identifiers. Describe your data's shape (files, columns, units, time step) instead.
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What are you writing?
+      options:
+        - A cohort adapter
+        - A model package
+    validations:
+      required: true
+  - type: textarea
+    id: goal
+    attributes:
+      label: What are you building?
+      description: For a cohort adapter, the data source and the shape of its data. For a model package, the models and the variables they need.
+    validations:
+      required: true
+  - type: textarea
+    id: stuck
+    attributes:
+      label: Where are you stuck?
+      description: The step you reached, what you ran, and what happened. Include the failing contract test, if there is one.
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: The building-energy-analysis version, and the template version you rendered from, if any.

@@ -1,0 +1,59 @@
+# GitHub silently drops an invalid form from the chooser, so check any edit against the issue
+# forms schema: every input, textarea and dropdown needs a unique `id` and a `label`.
+name: Bug report
+description: Something in a c-energie package does not work as documented.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. The fields below are what it takes to reproduce the problem.
+        **Never paste real data:** no readings, PUPRNs or other household identifiers, and nothing derived from data held under a data agreement. Synthetic data, or a description of its shape, is enough.
+  - type: input
+    id: package
+    attributes:
+      label: Package
+      description: The distribution name, as you installed it.
+      placeholder: building-energy-analysis
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Package version
+      description: "From `pip show <package>`, or the commit hash if you installed from git."
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: Windows 11
+    validations:
+      required: true
+  - type: input
+    id: python
+    attributes:
+      label: Python version
+      description: "From `python --version`."
+      placeholder: "3.13.1"
+    validations:
+      required: true
+  - type: dropdown
+    id: install-route
+    attributes:
+      label: Install route
+      description: How the package got onto the machine. The same bug often has a different cause on each route.
+      options:
+        - pip
+        - uv workspace
+        - secure environment
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Minimal reproduction
+      description: The shortest code or command that shows the problem, what you expected, and what happened instead, with the full traceback.
+    validations:
+      required: true
