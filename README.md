@@ -51,6 +51,13 @@ explicitly, as below; a called workflow never sees a secret it was not given. Wh
 is empty or absent, the workflow skips authentication and carries on, which is what
 should happen once the upstreams are public and the PAT is revoked.
 
+**Secret: `UCL_PCB_READ_TOKEN`** (optional). The same, for private **UCL-PCB** upstreams
+(`pcb-models @ git+https://github.com/UCL-PCB/pcb-models`). A fine-grained PAT has a
+single resource owner, so the c-energie token cannot read them; this one is used for
+`https://github.com/UCL-PCB/` URLs only (git takes the longest matching `insteadOf`), and
+`C_ENERGIE_READ_TOKEN` keeps every other URL. Pass it the same way, from a repository
+secret, in members that install a UCL-PCB repo.
+
 Never put git URLs or `[tool.uv.sources]` in a member's `pyproject.toml` to make CI
 find an upstream; that is what `upstreams` is for.
 
@@ -72,7 +79,7 @@ jobs:
     uses: c-energie/.github/.github/workflows/unittest.yml@main
     with:
       upstreams: |
-        building-energy-analysis[smeter-models] @ git+https://github.com/c-energie/building-energy-analysis
+        building-energy-analysis @ git+https://github.com/c-energie/building-energy-analysis
     secrets:
       C_ENERGIE_READ_TOKEN: ${{ secrets.C_ENERGIE_READ_TOKEN }}
 ```
