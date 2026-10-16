@@ -18,7 +18,7 @@ on:
       upstreams:
         description: >-
           Git requirements installed before the member, one per line, e.g.
-          `building-energy-analysis[smeter-models] @ git+https://github.com/c-energie/building-energy-analysis`.
+          `building-energy-analysis @ git+https://github.com/c-energie/building-energy-analysis`.
           Carry no `@ref`: each resolves to its repo's default branch.
         type: string
         default: ""
@@ -50,6 +50,13 @@ on:
           Fine-grained PAT, contents:read on the private c-energie repos, used
           to fetch private git upstreams. Optional: once the upstreams are
           public none is needed, and an empty value skips the rewrite.
+        required: false
+      UCL_PCB_READ_TOKEN:
+        description: >-
+          Fine-grained PAT, contents:read on the private UCL-PCB repos a member
+          installs (e.g. pcb-models). A fine-grained PAT has one resource owner,
+          so C_ENERGIE_READ_TOKEN cannot reach them. Used for
+          https://github.com/UCL-PCB/ URLs only; optional, empty skips it.
         required: false
 
 permissions:
@@ -155,13 +162,19 @@ jobs:
       # uv fetches git requirements with the git CLI, so a global insteadOf
       # authenticates every github.com URL without the token ever appearing in
       # a requirement line. Skipped when the secret is empty or not passed:
-      # after the public flip no token exists and none is needed.
+      # after the public flip no token exists and none is needed. git applies
+      # the longest matching insteadOf, so the UCL-PCB rewrite wins for
+      # https://github.com/UCL-PCB/ URLs and the c-energie one for the rest.
       - name: Authenticate git for private upstreams
         env:
           TOKEN: ${{ secrets.C_ENERGIE_READ_TOKEN }}
+          UCL_PCB_TOKEN: ${{ secrets.UCL_PCB_READ_TOKEN }}
         run: |
           if [ -n "$TOKEN" ]; then
             git config --global url."https://x-access-token:${TOKEN}@github.com/".insteadOf "https://github.com/"
+          fi
+          if [ -n "$UCL_PCB_TOKEN" ]; then
+            git config --global url."https://x-access-token:${UCL_PCB_TOKEN}@github.com/UCL-PCB/".insteadOf "https://github.com/UCL-PCB/"
           fi
 
       # Upstreams go in first and together, so the member's own install below
